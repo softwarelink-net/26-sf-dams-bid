@@ -4,6 +4,8 @@
 - **Repository 代码仓库**: [https://github.com/softwarelink-net/26-sf-dams-bid](https://github.com/softwarelink-net/26-sf-dams-bid)
 - **Dashboard 预览图路径**: `docs/assets/dashboard-preview.png`
 
+![Dashboard 预览图](./docs/assets/dashboard-preview.png)
+
 ---
 
 ## 部署与运行说明
