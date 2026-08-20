@@ -1,3 +1,16 @@
 User-agent: *
 Allow: /
+Allow: /bid-notice
+Allow: /login
+Allow: /dashboard
+Allow: /archives
+Allow: /borrow
+Allow: /xinchuang
+Allow: /security
+Allow: /users
+Allow: /audit
+
+Disallow: /403
+Disallow: /api/
+
 Sitemap: https://26-sf-dams-bid.softwarelink.net/sitemap.xml

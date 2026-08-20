@@ -25,6 +25,7 @@ custom_domain = true
 directory = "./dist/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# allworld 多站点主机分流依赖 Worker 优先；sitemap 在 Worker 内走 Cache API 加速
 run_worker_first = true
 
 [[d1_databases]]
@@ -40,6 +41,11 @@ bucket_name = "26-sf-dams-bid-assets"
 [[r2_buckets]]
 binding = "SITES"
 bucket_name = "allworld-sites"
+
+# 将 TTP 子域误入通配路由的请求转发到独立 Worker，避免 /api Not Found
+[[services]]
+binding = "TTP_SITE"
+service = "26-ttp-test-bid"
 
 [vars]
 PROJECT_SLUG = "26-sf-dams-bid"

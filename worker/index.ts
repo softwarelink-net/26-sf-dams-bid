@@ -9,6 +9,7 @@ export interface Env {
   STORAGE: R2Bucket
   SITES: R2Bucket
   ASSETS: Fetcher
+  TTP_SITE?: Fetcher
   PROJECT_SLUG: string
   DEPLOYMENT_HOST: string
   ROOT_DOMAIN: string
@@ -194,9 +195,69 @@ async function serveProjectStorage(request: Request, env: Env): Promise<Response
   return null
 }
 
+async function serveCachedStatic(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  pathname: string,
+): Promise<Response> {
+  const cache = caches.default
+  const cacheKey = new Request(new URL(pathname, request.url).toString(), {
+    method: 'GET',
+  })
+
+  const hit = await cache.match(cacheKey)
+  if (hit) {
+    const headers = new Headers(hit.headers)
+    headers.set('X-Cache', 'HIT')
+    return new Response(hit.body, { status: hit.status, headers })
+  }
+
+  let upstream: Response | null = null
+  if (env.ASSETS) {
+    upstream = await env.ASSETS.fetch(request)
+  }
+  if (!upstream || upstream.status >= 400) {
+    const fromR2 = await serveProjectStorage(request, env)
+    if (fromR2) upstream = fromR2
+  }
+  if (!upstream) {
+    return new Response('Not Found', { status: 404 })
+  }
+
+  const headers = new Headers(upstream.headers)
+  if (pathname.endsWith('.xml')) {
+    headers.set('Content-Type', 'application/xml; charset=utf-8')
+  } else if (pathname.endsWith('.txt')) {
+    headers.set('Content-Type', 'text/plain; charset=utf-8')
+  }
+  headers.set('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800')
+  headers.set('X-Cache', 'MISS')
+
+  const response = new Response(upstream.body, {
+    status: upstream.status,
+    headers,
+  })
+  ctx.waitUntil(cache.put(cacheKey, response.clone()))
+  return response
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
+
+    // 通配路由可能抢到 TTP 子域：统一转发给独立 Worker
+    if (url.hostname.toLowerCase().startsWith('26-ttp-test-bid.') && env.TTP_SITE) {
+      return env.TTP_SITE.fetch(request)
+    }
+
+    // 站点地图 / robots 优先走边缘缓存，避免每次冷启动 Worker
+    if (
+      isProjectHost(url.hostname, env) &&
+      (url.pathname === '/sitemap.xml' || url.pathname === '/robots.txt')
+    ) {
+      return serveCachedStatic(request, env, ctx, url.pathname)
+    }
 
     if (isProjectHost(url.hostname, env)) {
       if (url.pathname.startsWith('/api/')) {
